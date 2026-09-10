@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 from sqlalchemy import select
 
 from snackapp.app import App
@@ -11,11 +10,17 @@ from snackapp.schema import Field
 from snackapp.schema_sync import apply_schema
 
 
-@pytest.mark.asyncio
-async def test_init_database_and_schema_from_clean_dir(tmp_path, monkeypatch):
+def test_init_database_and_schema_from_clean_dir(tmp_path, monkeypatch):
+    import asyncio
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("SNACKBASE_ALEMBIC_INI", raising=False)
+    monkeypatch.delenv("SNACKBASE_DATABASE_URL", raising=False)
     apply_runtime_env(tmp_path)
+    asyncio.run(_first_run_body(tmp_path))
+
+
+async def _first_run_body(tmp_path) -> None:
 
     from snackbase.infrastructure.persistence.database import get_db_manager, init_database
     from snackbase.infrastructure.persistence.models import CollectionModel

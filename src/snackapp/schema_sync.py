@@ -70,25 +70,27 @@ async def apply_schema(app_obj: Any, *, confirm: bool = False) -> dict[str, Any]
         if user is None:
             user = (await session.execute(select(UserModel))).scalars().first()
         user_id = user.id if user else SYSTEM_ACCOUNT_ID
-
-        service = CollectionService(
-            session,
-            db.engine,
-            migration_service=MigrationService(
-                alembic_ini_path=str(resolve_alembic_ini()),
-                engine=db.engine,
-            ),
-        )
         existing = {row.name: row for row in rows}
-        for name, schema in declared.items():
-            cd = app_obj.schema.defs[name]
+        await session.commit()
+
+    for name, schema in declared.items():
+        cd = app_obj.schema.defs[name]
+        async with db.session() as session:
+            service = CollectionService(
+                session,
+                db.engine,
+                migration_service=MigrationService(
+                    alembic_ini_path=str(resolve_alembic_ini()),
+                    engine=db.engine,
+                ),
+            )
             if name not in existing:
                 await service.create_collection(
                     name, schema, user_id, rules_data=cd.rule_map()
                 )
-                continue
-            live = {field["name"] for field in current[name]}
-            if any(field["name"] not in live for field in schema):
-                await service.update_collection_schema(existing[name].id, schema)
-        await session.commit()
-        return plan.to_dict()
+            else:
+                live = {field["name"] for field in current[name]}
+                if any(field["name"] not in live for field in schema):
+                    await service.update_collection_schema(existing[name].id, schema)
+            await session.commit()
+    return plan.to_dict()

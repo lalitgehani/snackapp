@@ -10,7 +10,7 @@ from snackapp.schema import Field, Schema, rules_for
 try:
     __version__ = version("snackapp")
 except PackageNotFoundError:
-    __version__ = "0.1.0"
+    __version__ = "0.1.1"
 
 __all__ = [
     "App",

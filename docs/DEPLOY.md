@@ -1,12 +1,27 @@
 # Deploying SnackApp
 
+## Install
+
+Until the packages are on pypi.org, install the TestPyPI wheels and take
+dependencies from PyPI:
+
+```bash
+python -m pip install --only-binary=:all: \
+  --extra-index-url https://test.pypi.org/simple/ \
+  snackapp==0.1.1 snackbase==0.12.1
+```
+
+`--only-binary=:all:` is required: TestPyPI has a broken FastAPI sdist that
+pip otherwise tries to build. After the production PyPI projects exist,
+`pip install snackapp` is enough.
+
 ## Single process with SQLite
 
 ```bash
-pip install snackapp
 snackapp init myapp && cd myapp
 snackapp run --host 0.0.0.0 --port 8000
 ```
+
 
 ## PostgreSQL
 
@@ -28,4 +43,4 @@ Before the first tag, an owner must:
 1. Create the PyPI projects `snackbase` then `snackapp` (or claim the names).
 2. Add a trusted publisher: GitHub org/user, repository, workflow `publish.yml`,
    environment `pypi`.
-3. Tag and push `v0.12.0` on SnackBase, then `v0.1.0` on snackapp.
+3. Tag and push `v0.12.1` on SnackBase, then `v0.1.1` on snackapp.

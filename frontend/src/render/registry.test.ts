@@ -36,4 +36,22 @@ describe("node registry", () => {
     expect(body).not.toContain(">n60<");
     expect(body).not.toContain(">n9999<");
   });
+
+  it("renders a form with a submit control", () => {
+    const node = {
+      kind: "form",
+      name: "new",
+      action: "add_todo",
+      title: "Add",
+      items: [{ field: "title", label: "Title", type: "text" }],
+      values: {},
+      params: {},
+      submit_label: "Add task",
+    };
+    const el = registry.form(node, () => null) as ReactElement;
+    const html = renderToStaticMarkup(createElement("div", null, el));
+    expect(html).toContain('data-kind="form"');
+    expect(html).toContain('name="title"');
+    expect(html).toContain("Add task");
+  });
 });

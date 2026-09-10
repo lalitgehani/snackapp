@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { type FormEvent, type ReactNode, useContext, useState } from "react";
+import { ActionContext } from "../action";
 import { FIELD_DISPLAY } from "../fields/FieldRenderer";
 
 export type Node = {
@@ -70,9 +71,9 @@ export const registry: Renderers = {
     </ol>
   ),
   bar_chart: (n) => <Chart node={n} kind="bar" />,
-  form: (n) => <form data-kind="form">{String(n.title ?? n.name)}</form>,
+  form: (n) => <ActionForm node={n} />,
   filter_bar: (n) => <div data-kind="filter-bar">{JSON.stringify(n.items ?? [])}</div>,
-  button: (n) => <button type="button">{String(n.label)}</button>,
+  button: (n) => <ActionButton node={n} />,
   record: (n) => (
     <div data-kind="record" data-panel={n.panel ? "1" : "0"}>
       <div>{String(n.collection)} {String(n.id)}</div>
@@ -100,9 +101,12 @@ export const registry: Renderers = {
 const VIRTUAL_BOUND = 60;
 
 function DataTable({ node }: { node: Node }) {
+  const { go, run } = useContext(ActionContext);
   const rows = (node.rows as Record<string, unknown>[]) || [];
   const columns = (node.columns as { field: string; label: string }[]) || [];
+  const actions = (node.row_actions as { label: string; action?: string; params?: Record<string, unknown> }[]) || [];
   const visible = rows.slice(0, VIRTUAL_BOUND);
+  const link = node.row_link ? String(node.row_link) : "";
   return (
     <table data-kind="table" data-virtual-bound={VIRTUAL_BOUND} data-row-count={rows.length}>
       <thead>
@@ -110,18 +114,131 @@ function DataTable({ node }: { node: Node }) {
           {columns.map((c) => (
             <th key={c.field}>{c.label}</th>
           ))}
+          {actions.length ? <th>Actions</th> : null}
         </tr>
       </thead>
       <tbody>
         {visible.map((row, i) => (
-          <tr key={String(row.id ?? i)}>
+          <tr
+            key={String(row.id ?? i)}
+            onClick={
+              link
+                ? () => go(link.replace("{id}", String(row.id ?? "")))
+                : undefined
+            }
+            style={link ? { cursor: "pointer" } : undefined}
+          >
             {columns.map((c) => (
               <td key={c.field}>{cell(row[c.field])}</td>
             ))}
+            {actions.length ? (
+              <td onClick={(event) => event.stopPropagation()}>
+                {actions.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() =>
+                      run(String(item.action), {
+                        ...(item.params || {}),
+                        id: row.id,
+                      })
+                    }
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
     </table>
+  );
+}
+
+type FormItem = {
+  field: string;
+  label: string;
+  type?: string;
+  options?: string[];
+};
+
+function ActionForm({ node }: { node: Node }) {
+  const { run } = useContext(ActionContext);
+  const items = (node.items as FormItem[]) || [];
+  const values = (node.values as Record<string, unknown>) || {};
+  const extra = (node.params as Record<string, unknown>) || {};
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const params: Record<string, unknown> = { ...extra, ...values };
+    for (const [key, value] of data.entries()) {
+      params[key] = value;
+    }
+    const result = await run(String(node.action), params);
+    if (result.ok === false || result.error) {
+      setError(result.error || "Could not save");
+      return;
+    }
+    form.reset();
+  }
+  return (
+    <form data-kind="form" className="sa-form" onSubmit={submit}>
+      {node.title ? <h3>{String(node.title)}</h3> : null}
+      {items.map((item) => (
+        <label key={item.field}>
+          {item.label}
+          {item.type === "select" ? (
+            <select name={item.field} defaultValue={String(values[item.field] ?? "")}>
+              {(item.options || []).map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          ) : item.type === "long_text" ? (
+            <textarea name={item.field} defaultValue={String(values[item.field] ?? "")} rows={3} />
+          ) : (
+            <input
+              name={item.field}
+              type={item.type === "date" ? "date" : "text"}
+              defaultValue={String(values[item.field] ?? "")}
+              required={Boolean((item as { required?: boolean }).required)}
+            />
+          )}
+        </label>
+      ))}
+      {error ? <p className="muted">{error}</p> : null}
+      <button type="submit">{String(node.submit_label || "Save")}</button>
+    </form>
+  );
+}
+
+function ActionButton({ node }: { node: Node }) {
+  const { run, go } = useContext(ActionContext);
+  const label = String(node.label ?? "");
+  return (
+    <button
+      type="button"
+      data-tone={String(node.tone || "default")}
+      onClick={() => {
+        if (node.confirm && !window.confirm(String(node.confirm))) {
+          return;
+        }
+        if (node.link) {
+          go(String(node.link));
+          return;
+        }
+        if (node.action) {
+          void run(String(node.action), (node.params as Record<string, unknown>) || {});
+        }
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

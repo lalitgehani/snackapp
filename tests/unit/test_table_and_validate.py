@@ -83,6 +83,7 @@ def test_ui_fields_button_modal():
     kinds = {c["kind"] for c in root["children"]}
     assert "fields" in kinds
     assert "form" in kinds
+    assert "button" in kinds
 
 
 def test_apply_runtime_env(tmp_path, monkeypatch):

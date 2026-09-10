@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ActionContext, type ActionResult } from "./action";
 import { renderNode, type Node } from "./render/registry";
 
 type Meta = {
@@ -69,9 +70,42 @@ export function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
 
+  const [toast, setToast] = useState("");
+
   const filteredNav = useMemo(
     () => (meta?.nav || []).filter((item) => item.title.toLowerCase().includes(query.toLowerCase())),
     [meta, query],
+  );
+
+  const go = useCallback((next: string) => {
+    history.pushState({}, "", base + next);
+    setPath(next);
+  }, []);
+
+  const runAction = useCallback(
+    async (name: string, params: Record<string, unknown> = {}): Promise<ActionResult> => {
+      const response = await fetch(`${base}/_sa/action/${encodeURIComponent(name)}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      const data = (await response.json().catch(() => ({}))) as ActionResult;
+      if (!response.ok) {
+        return { ok: false, error: data.error || "Could not run action" };
+      }
+      if (data.toast) {
+        setToast(data.toast);
+        window.setTimeout(() => setToast(""), 2400);
+      }
+      if (data.redirect) {
+        go(data.redirect);
+      } else {
+        loadView(path);
+      }
+      return data;
+    },
+    [go, path],
   );
 
   function loadMeta() {
@@ -123,7 +157,10 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const actionApi = useMemo(() => ({ run: runAction, go }), [runAction, go]);
+
   return (
+    <ActionContext.Provider value={actionApi}>
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside style={{ width: 220, borderRight: "1px solid var(--line)", padding: 16 }}>
         <strong>{meta?.title ?? "SnackApp"}</strong>
@@ -148,6 +185,7 @@ export function App() {
         </button>
       </aside>
       <main style={{ flex: 1, padding: 24 }}>
+        {toast ? <div className="toast" role="status">{toast}</div> : null}
         {auth === "login" ? (
           <LoginForm
             onDone={() => {
@@ -190,5 +228,6 @@ export function App() {
         </div>
       ) : null}
     </div>
+    </ActionContext.Provider>
   );
 }

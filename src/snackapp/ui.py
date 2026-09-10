@@ -189,9 +189,16 @@ def bar_chart(data: list[dict], label_field: str, value_field: str, height: int 
 def button(label: str, action: str | None = None, params: dict | None = None,
            link: str | None = None, opens: str | None = None,
            tone: str = "default", confirm: str | None = None):
-    return {"kind": "button", "label": label, "action": action,
-            "params": params or {}, "link": link, "opens": opens,
-            "tone": tone, "confirm": confirm}
+    return _node(
+        "button",
+        label=label,
+        action=action,
+        params=params or {},
+        link=link,
+        opens=opens,
+        tone=tone,
+        confirm=confirm,
+    )
 
 
 def form(name: str, action: str, spec: list, values: dict | None = None,

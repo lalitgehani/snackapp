@@ -21,7 +21,18 @@ SnackApp is `0.1.0`. Before `1.0`, breaking changes may appear in minor releases
 
 ## Publishing
 
-CI publishes to PyPI from a `v*` tag using [trusted publishing](https://docs.pypi.org/trusted-publishers/) (`id-token: write`, no API token in the repo). Publish `snackbase` first, then `snackapp`. Configure the PyPI trusted publisher for `.github/workflows/publish.yml` before pushing a tag.
+CI publishes to PyPI from a `v*` tag using [trusted publishing](https://docs.pypi.org/trusted-publishers/) (`id-token: write`, no API token in the repo). Publish `snackbase` first, then `snackapp`.
+
+PyPI trusted publisher settings (once the PyPI projects exist):
+
+| Field | snackbase | snackapp |
+| --- | --- | --- |
+| Owner | `lalitgehani` | `lalitgehani` |
+| Repository | `SnackBase` | `snackapp` |
+| Workflow | `publish.yml` | `publish.yml` |
+| Environment | `pypi` | `pypi` |
+
+Do not push a `v*` tag until those publishers are saved on PyPI.
 
 ## Docs
 

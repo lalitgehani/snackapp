@@ -2,18 +2,9 @@
 
 ## Install
 
-Until the packages are on pypi.org, install the TestPyPI wheels and take
-dependencies from PyPI:
-
 ```bash
-python -m pip install --only-binary=:all: \
-  --extra-index-url https://test.pypi.org/simple/ \
-  snackapp==0.1.1 snackbase==0.12.1
+pip install snackapp
 ```
-
-`--only-binary=:all:` is required: TestPyPI has a broken FastAPI sdist that
-pip otherwise tries to build. After the production PyPI projects exist,
-`pip install snackapp` is enough.
 
 ## Single process with SQLite
 

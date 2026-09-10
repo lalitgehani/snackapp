@@ -59,7 +59,7 @@ jobs:
           "$PY" -m snackapp --help
           "$PY" -m snackapp --version
 
-  install-testpypi:
+  install-pypi:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: pip install snackapp from TestPyPI
+      - name: pip install snackapp from PyPI
         shell: bash
         run: |
           python -m venv .ci-venv
@@ -80,8 +80,6 @@ jobs:
             PY=.ci-venv/Scripts/python
           fi
           "$PY" -m pip install -U pip
-          "$PY" -m pip install --only-binary=:all: \
-            --extra-index-url https://test.pypi.org/simple/ \
-            snackapp==0.1.1 snackbase==0.12.1
+          "$PY" -m pip install snackapp==0.1.1
           "$PY" -m snackapp --help
           "$PY" -m snackapp --version

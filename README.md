@@ -3,17 +3,11 @@
 A Python application framework with SnackBase embedded. One install, one command, a working multi-user app.
 
 ```bash
-python -m pip install --only-binary=:all: \
-  --extra-index-url https://test.pypi.org/simple/ \
-  snackapp==0.1.1 snackbase==0.12.1
+pip install snackapp
 snackapp init demo
 cd demo
 snackapp run
 ```
-
-`--only-binary=:all:` keeps pip from building TestPyPI source distributions (TestPyPI hosts a broken FastAPI sdist). Dependencies that are not on TestPyPI still resolve from PyPI.
-
-When `snackapp` is on [pypi.org](https://pypi.org/project/snackapp/), `pip install snackapp` is enough.
 
 Open http://localhost:8000 and log in with the credentials printed on first boot.
 
@@ -27,9 +21,9 @@ SnackApp is `0.1.1`. Before `1.0`, breaking changes may appear in minor releases
 
 ## Publishing
 
-`snackbase 0.12.1` and `snackapp 0.1.1` are on [TestPyPI](https://test.pypi.org/project/snackapp/). CI publishes to PyPI from a `v*` tag using [trusted publishing](https://docs.pypi.org/trusted-publishers/) (`id-token: write`, no API token in the repo). Publish `snackbase` first, then `snackapp`.
+`snackbase 0.12.1` and `snackapp 0.1.1` are on [PyPI](https://pypi.org/project/snackapp/). CI publishes from a `v*` tag using [trusted publishing](https://docs.pypi.org/trusted-publishers/) (`id-token: write`, no API token in the repo). Publish `snackbase` first, then `snackapp`.
 
-PyPI trusted publisher settings (once the production PyPI projects exist):
+PyPI trusted publisher settings:
 
 | Field | snackbase | snackapp |
 | --- | --- | --- |
@@ -38,7 +32,7 @@ PyPI trusted publisher settings (once the production PyPI projects exist):
 | Workflow | `publish.yml` | `publish.yml` |
 | Environment | `pypi` | `pypi` |
 
-Do not push a `v*` tag until those publishers are saved on pypi.org.
+Do not push a `v*` tag until those publishers are saved on pypi.org. The first production upload used a local token that is not stored in the repository or in CI.
 
 ## Docs
 

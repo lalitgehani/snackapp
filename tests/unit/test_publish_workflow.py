@@ -18,13 +18,10 @@ def test_publish_workflow_uses_oidc_and_no_token_secret():
     assert "password:" not in text.lower() or "id-token" in text
 
 
-def test_ci_installs_from_testpypi_on_os_matrix():
+def test_ci_installs_from_pypi_on_os_matrix():
     text = TEST_WORKFLOW.read_text()
-    assert "install-testpypi" in text
-    assert "test.pypi.org/simple/" in text
-    assert "--only-binary=:all:" in text
-    assert "snackapp==0.1.1" in text
-    assert "snackbase==0.12.1" in text
+    assert "install-pypi" in text
+    assert "pip install snackapp==0.1.1" in text
     assert "ubuntu-latest" in text
     assert "macos-latest" in text
     assert "windows-latest" in text
@@ -34,15 +31,14 @@ def test_ci_installs_from_testpypi_on_os_matrix():
     assert "snackbase-0.12.1-py3-none-any.whl" in text
     assert "npm test" in text
     assert "snackapp/frontend" in text
+    assert "PYPI_API_TOKEN" not in text
+    assert "TWINE_PASSWORD" not in text
 
 
-def test_readme_and_deploy_document_testpypi_install():
+def test_readme_and_deploy_lead_with_pypi_install():
     readme = README.read_text()
     deploy = DEPLOY.read_text()
     for text in (readme, deploy):
-        assert "--extra-index-url https://test.pypi.org/simple/" in text
-        assert "--only-binary=:all:" in text
-        assert "snackapp==0.1.1" in text
-        assert "snackbase==0.12.1" in text
+        assert "pip install snackapp" in text
     assert "PYPI_API_TOKEN" not in readme
     assert "pypi-" not in readme.lower()

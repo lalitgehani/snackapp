@@ -23,6 +23,28 @@ from snackapp.schema import CollectionDef, Schema
 STATIC = Path(__file__).parent / "static"
 
 
+def _prepare_shell(at: str) -> str:
+    """Rewrite the Vite index.html so hashed assets load from ``/_sa/static``."""
+    fallback = (
+        "<!doctype html><html><body><div id='root'></div>"
+        f"<script src='{at}/_sa/static/app.js' data-base='{at}'></script></body></html>"
+    )
+    path = STATIC / "index.html"
+    if not path.exists():
+        return fallback
+    html = path.read_text()
+    prefix = f"{at}/_sa/static"
+    html = html.replace('src="./assets/', f'src="{prefix}/assets/')
+    html = html.replace("src='./assets/", f"src='{prefix}/assets/")
+    html = html.replace('href="./assets/', f'href="{prefix}/assets/')
+    html = html.replace("href='./assets/", f"href='{prefix}/assets/")
+    if "data-base" not in html:
+        html = html.replace("<script", f'<script data-base="{at}"', 1)
+    else:
+        html = html.replace('data-base=""', f'data-base="{at}"')
+    return html
+
+
 @dataclass
 class Page:
     path: str
@@ -119,9 +141,21 @@ class Table:
 
     def count(self, filter: str | None = None) -> int:
         self._read()
-        payload = _run(self.db.list(self.name, filter=filter, limit=1))
+        payload = _run(self.db.aggregate(self.name, functions="count()", filter=filter))
         if isinstance(payload, dict):
-            return int(payload.get("total") or 0)
+            results = payload.get("results") or []
+            if results and isinstance(results[0], dict):
+                row = results[0]
+                for key in ("count", "count()"):
+                    if key in row:
+                        return int(row[key] or 0)
+                for value in row.values():
+                    if isinstance(value, (int, float)):
+                        return int(value)
+            if payload.get("total") is not None:
+                return int(payload["total"] or 0)
+            if payload.get("count") is not None:
+                return int(payload["count"] or 0)
         return 0
 
 
@@ -160,6 +194,7 @@ class App:
         self.base_path = ""
         self.pages: list[Page] = []
         self.actions: dict[str, Callable[..., Any]] = {}
+        self.tables: dict[str, Table] = {}
         import contextvars
 
         self._ctx_var: contextvars.ContextVar[Ctx] = contextvars.ContextVar("sa_ctx")
@@ -167,7 +202,9 @@ class App:
 
     def collection(self, name: str, *fields: dict[str, Any], **kw: Any) -> Table:
         cd = self.schema.collection(name, *fields, **kw)
-        return Table(cd, lambda: self._ctx_var.get())
+        table = Table(cd, lambda: self._ctx_var.get())
+        self.tables[name] = table
+        return table
 
     def page(
         self,
@@ -433,17 +470,7 @@ class App:
         if STATIC.exists():
             api.mount(f"{at}/_sa/static", StaticFiles(directory=STATIC), name="sa_static")
 
-        shell = (STATIC / "index.html").read_text() if (STATIC / "index.html").exists() else (
-            "<!doctype html><html><body><div id='root'></div>"
-            "<script src='/_sa/static/app.js' data-base=''></script></body></html>"
-        )
-        if "data-base" not in shell:
-            shell = shell.replace("<script", f'<script data-base="{at}"', 1)
-        if at:
-            shell = shell.replace(
-                'src="/_sa/static/app.js"',
-                f'src="{at}/_sa/static/app.js" data-base="{at}"',
-            )
+        shell = _prepare_shell(at)
 
         @api.api_route(at + "/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
         async def spa(full_path: str) -> Response:

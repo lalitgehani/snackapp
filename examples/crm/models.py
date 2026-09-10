@@ -2,6 +2,7 @@ from snackapp import Field
 
 COMPANIES = [
     Field.text("name", required=True),
+    Field.computed("label", "concat(name, '')", "text"),
     Field.full_name("legal_name"),
     Field.emails("emails"),
     Field.phones("phones"),
@@ -25,7 +26,6 @@ PEOPLE = [
     Field.relation("company", to="companies"),
     Field.user("owner"),
     Field.select("role", ["champion", "buyer", "user"]),
-    Field.computed("label", "concat(name, '')", "text"),
 ]
 
 OPPORTUNITIES = [

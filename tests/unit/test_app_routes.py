@@ -46,6 +46,7 @@ def test_meta_and_logout_and_view_auth():
     spa = client.get("/")
     assert spa.status_code == 200
     assert b"root" in spa.content
+    assert b"/_sa/static" in spa.content or b"data-base" in spa.content
     head = client.head("/")
     assert head.status_code == 200
 

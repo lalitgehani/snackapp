@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FIELD_DISPLAY } from "../fields/FieldRenderer";
 
 export type Node = {
   kind: string;
@@ -10,6 +11,18 @@ export type Renderers = Record<string, (node: Node, render: (n: Node) => ReactNo
 
 function kids(node: Node, render: (n: Node) => ReactNode): ReactNode {
   return (node.children || []).map((child, i) => <span key={i}>{render(child)}</span>);
+}
+
+function chip(value: unknown): ReactNode {
+  if (value && typeof value === "object") {
+    const rec = value as { email?: string; name?: string; id?: string };
+    return (
+      <span className="badge" data-kind="record-chip">
+        {rec.email || rec.name || rec.id || FIELD_DISPLAY.user(value)}
+      </span>
+    );
+  }
+  return String(value ?? "");
 }
 
 export const registry: Renderers = {
@@ -47,26 +60,51 @@ export const registry: Renderers = {
   badge: (n) => <span className="badge">{String(n.value)}</span>,
   divider: () => <hr />,
   table: (n) => <DataTable node={n} />,
-  fields: (n) => <pre>{JSON.stringify(n.record)}</pre>,
+  fields: (n) => <FieldGrid node={n} />,
   kanban: (n) => <Kanban node={n} />,
-  timeline: (n) => <ol data-kind="timeline">{((n.items as object[]) || []).length} entries</ol>,
-  bar_chart: (n) => <div data-kind="chart-bar">{JSON.stringify(n.data)}</div>,
+  timeline: (n) => (
+    <ol data-kind="timeline">
+      {((n.items as { summary?: string; title?: string }[]) || []).map((item, i) => (
+        <li key={i}>{item.summary || item.title || "entry"}</li>
+      ))}
+    </ol>
+  ),
+  bar_chart: (n) => <Chart node={n} kind="bar" />,
   form: (n) => <form data-kind="form">{String(n.title ?? n.name)}</form>,
-  filter_bar: (n) => <div data-kind="filter-bar" />,
+  filter_bar: (n) => <div data-kind="filter-bar">{JSON.stringify(n.items ?? [])}</div>,
   button: (n) => <button type="button">{String(n.label)}</button>,
-  record: (n) => <div data-kind="record" data-panel={n.panel ? "1" : "0"}>{String(n.id)}</div>,
-  chart: (n) => <div data-kind={`chart-${n.chart}`}>{JSON.stringify(n.data)}</div>,
-  list: (n) => <ul data-kind="list">{((n.rows as object[]) || []).length}</ul>,
+  record: (n) => (
+    <div data-kind="record" data-panel={n.panel ? "1" : "0"}>
+      <div>{String(n.collection)} {String(n.id)}</div>
+      <div data-kind="record-tabs">{((n.tabs as string[]) || []).join(" · ")}</div>
+    </div>
+  ),
+  chart: (n) => <Chart node={n} kind={String(n.chart || "bar")} />,
+  list: (n) => (
+    <ul data-kind="list">
+      {((n.rows as Record<string, unknown>[]) || []).map((row, i) => (
+        <li key={String(row.id ?? i)}>{String(row[String(n.title_field || "name")] ?? "")}</li>
+      ))}
+    </ul>
+  ),
   calendar: (n) => <div data-kind="calendar" data-field={String(n.date_field)} />,
-  view_bar: (n) => <div data-kind="view-bar" />,
+  view_bar: (n) => (
+    <div data-kind="view-bar">
+      {((n.views as { name: string }[]) || []).map((v) => (
+        <button key={v.name} type="button">{v.name}</button>
+      ))}
+    </div>
+  ),
 };
+
+const VIRTUAL_BOUND = 60;
 
 function DataTable({ node }: { node: Node }) {
   const rows = (node.rows as Record<string, unknown>[]) || [];
   const columns = (node.columns as { field: string; label: string }[]) || [];
-  const visible = rows.slice(0, 60);
+  const visible = rows.slice(0, VIRTUAL_BOUND);
   return (
-    <table data-kind="table">
+    <table data-kind="table" data-virtual-bound={VIRTUAL_BOUND} data-row-count={rows.length}>
       <thead>
         <tr>
           {columns.map((c) => (
@@ -78,7 +116,7 @@ function DataTable({ node }: { node: Node }) {
         {visible.map((row, i) => (
           <tr key={String(row.id ?? i)}>
             {columns.map((c) => (
-              <td key={c.field}>{String(row[c.field] ?? "")}</td>
+              <td key={c.field}>{cell(row[c.field])}</td>
             ))}
           </tr>
         ))}
@@ -87,15 +125,62 @@ function DataTable({ node }: { node: Node }) {
   );
 }
 
+function cell(value: unknown): ReactNode {
+  if (value && typeof value === "object") return chip(value);
+  return String(value ?? "");
+}
+
+function FieldGrid({ node }: { node: Node }) {
+  const record = (node.record as Record<string, unknown>) || {};
+  const items = (node.items as { field: string; label: string }[]) || [];
+  return (
+    <dl data-kind="fields">
+      {items.map((item) => (
+        <div key={item.field}>
+          <dt>{item.label}</dt>
+          <dd>{cell(record[item.field])}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function Kanban({ node }: { node: Node }) {
   const groups = (node.groups as string[]) || [];
+  const rows = (node.rows as Record<string, unknown>[]) || [];
+  const groupBy = String(node.group_by || "stage");
+  const titleField = String(node.title_field || "name");
   return (
     <div data-kind="kanban" style={{ display: "flex", gap: 12 }}>
       {groups.map((g) => (
-        <div key={g} data-group={g}>
+        <div key={g} data-group={g} style={{ flex: 1 }}>
           <h4>{g}</h4>
+          {rows
+            .filter((row) => String(row[groupBy] ?? "") === g)
+            .map((row, i) => (
+              <article key={String(row.id ?? i)} draggable>
+                {String(row[titleField] ?? "")}
+              </article>
+            ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+function Chart({ node, kind }: { node: Node; kind: string }) {
+  const data = (node.data as object[]) || [];
+  return (
+    <div data-kind={`chart-${kind}`}>
+      <table>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i}>
+              <td>{JSON.stringify(row)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

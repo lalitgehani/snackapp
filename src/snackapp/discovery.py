@@ -49,8 +49,15 @@ def _current() -> Any:
     return app
 
 
-def page(path: str | None = None, *, title: str = "", nav: bool = False,
-         icon: str | None = None, order: int = 0) -> Callable:
+def page(
+    path: str | None = None,
+    *,
+    title: str = "",
+    nav: bool = False,
+    icon: str | None = None,
+    order: int = 0,
+    public: bool = False,
+) -> Callable:
     """Register a page. `path` defaults to the route derived from the filename."""
     def deco(fn: Callable) -> Callable:
         app = _current()
@@ -58,15 +65,26 @@ def page(path: str | None = None, *, title: str = "", nav: bool = False,
         route = path or getattr(mod, "__sa_route__", None)
         if route is None:
             raise ValueError(f"{fn.__name__}: no path given and no route could be derived")
-        app.page(route, title=title or _titleize(fn.__name__), nav=nav,
-                 icon=icon, order=order)(fn)
+        app.page(
+            route,
+            title=title or _titleize(fn.__name__),
+            nav=nav,
+            icon=icon,
+            order=order,
+            public=public,
+        )(fn)
         return fn
     return deco
 
 
-def action(fn: Callable) -> Callable:
+def action(fn: Callable | None = None, *, command: bool = False) -> Callable:
     """Register an action from anywhere under the app package."""
-    return _current().action(fn)
+    def deco(func: Callable) -> Callable:
+        return _current().action(func, command=command)
+
+    if fn is None:
+        return deco
+    return deco(fn)
 
 
 def _titleize(name: str) -> str:

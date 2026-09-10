@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import secrets
 import stat
+from datetime import UTC, datetime
 from pathlib import Path
 
 MARKER = "provisioned"
@@ -43,6 +44,14 @@ def apply_runtime_env(root: Path | None = None) -> Path:
     )
     os.environ.setdefault("SNACKBASE_STORAGE_PATH", str(base / "files"))
     os.environ["SNACKBASE_TEST_DATA_DIR"] = str(base)
+    try:
+        from snackbase.core.config import get_settings
+        from snackbase.infrastructure.persistence import database as dbmod
+
+        get_settings.cache_clear()
+        dbmod._db_manager = None
+    except ImportError:
+        pass
     return base
 
 
@@ -91,7 +100,7 @@ async def provision_first_user(root: Path | None = None) -> dict[str, str] | Non
             await session.execute(select(RoleModel).where(RoleModel.name == "admin"))
         ).scalar_one()
         password = generate_password()
-        email = "admin@local"
+        email = "admin@example.com"
         import uuid
 
         user = UserModel(
@@ -101,6 +110,8 @@ async def provision_first_user(root: Path | None = None) -> dict[str, str] | Non
             password_hash=hash_password(password),
             role=role,
             is_active=True,
+            email_verified=True,
+            email_verified_at=datetime.now(UTC),
         )
         session.add(user)
         await session.commit()

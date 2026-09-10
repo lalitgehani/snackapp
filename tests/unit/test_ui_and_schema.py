@@ -1,6 +1,6 @@
 
 from snackapp import ui
-from snackapp.app import App, Ctx
+from snackapp.app import App, Ctx, _prepare_shell
 from snackapp.discovery import load_package
 from snackapp.fields.filters import compile_filter
 from snackapp.fields.validate import validate_value
@@ -130,6 +130,12 @@ def test_secret_mode(tmp_path):
     assert already_provisioned(tmp_path) is False
     mark_provisioned(tmp_path)
     assert already_provisioned(tmp_path) is True
+
+
+def test_prepare_shell_rewrites_assets(tmp_path, monkeypatch):
+    html = _prepare_shell("")
+    assert "data-base" in html
+    assert "/_sa/static" in html or "root" in html
 
 
 def test_app_render_without_ctx():

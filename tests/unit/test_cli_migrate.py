@@ -17,5 +17,5 @@ def test_init_then_routes(tmp_path, monkeypatch):
     assert result.exit_code == 0
     monkeypatch.chdir(tmp_path / "demo")
     result = runner.invoke(cli, ["routes"])
-    # app.py defines @page but also pages/index — may fail if snackapp not loading
-    assert result.exit_code in (0, 1)
+    assert result.exit_code == 0, result.output
+    assert "/" in result.output

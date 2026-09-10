@@ -14,4 +14,14 @@ describe("node registry", () => {
       expect(registry[kind], kind).toBeTypeOf("function");
     }
   });
+
+  it("bounds table rows", () => {
+    const node = {
+      kind: "table",
+      rows: Array.from({ length: 80 }, (_, i) => ({ id: String(i), name: "n" })),
+      columns: [{ field: "name", label: "Name" }],
+    };
+    const el = registry.table(node, () => null) as { props: { node: typeof node } };
+    expect(el).toBeTruthy();
+  });
 });

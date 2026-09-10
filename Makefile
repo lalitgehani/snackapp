@@ -1,10 +1,9 @@
 .PHONY: build-frontend test
 
 build-frontend:
-	cd frontend && npm ci && npm run build
 	rm -rf src/snackapp/static/assets
 	mkdir -p src/snackapp/static/assets
-	cp -R frontend/dist/. src/snackapp/static/
+	cd frontend && npm ci && npm run build
 
 test:
 	uv run ruff check .

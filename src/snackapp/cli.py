@@ -85,10 +85,11 @@ def run(port: int | None, host: str | None, reload: bool) -> None:
         os.environ["SNACKAPP_BACKEND_URL"] = settings.backend_url
 
     app_obj = _load_app()
-    asgi = app_obj.fastapi()
 
     async def _boot() -> None:
         from snackbase.infrastructure.persistence.database import init_database
+
+        from snackapp.schema_sync import apply_schema
 
         await init_database()
         creds = await provision_first_user()
@@ -99,7 +100,7 @@ def run(port: int | None, host: str | None, reload: bool) -> None:
                 f"  email:    {creds['email']}\n"
                 f"  password: {creds['password']}"
             )
-        _sync_schema(app_obj, confirm=False)
+        await apply_schema(app_obj, confirm=False)
 
     try:
         asyncio.run(_boot())
@@ -108,6 +109,7 @@ def run(port: int | None, host: str | None, reload: bool) -> None:
     except DestructiveChangeError as exc:
         raise SystemExit(str(exc)) from exc
 
+    asgi = app_obj.fastapi()
     uvicorn.run(
         asgi,
         host=settings.host,
@@ -161,41 +163,15 @@ def _load_app() -> Any:
 
 def _plan_schema(app_obj: Any) -> dict[str, Any]:
     import asyncio
-    import json
 
-    from snackbase.domain.services.schema_diff import diff_collection_schemas
-    from snackbase.infrastructure.persistence.database import get_db_manager
-    from snackbase.infrastructure.persistence.models import CollectionModel
+    from snackapp.schema_sync import current_schemas, plan_schema
 
-    async def _load() -> dict[str, list[dict[str, Any]]]:
-        db = get_db_manager()
-        async with db.session() as session:
-            from sqlalchemy import select
-
-            rows = (await session.execute(select(CollectionModel))).scalars().all()
-            return {row.name: json.loads(row.schema) for row in rows}
-
-    current = asyncio.run(_load())
-    declared = {
-        item["name"]: item["schema"] for item in app_obj.schema.declared_payload()
-    }
-    return diff_collection_schemas(current, declared).to_dict()
+    return plan_schema(app_obj, asyncio.run(current_schemas()))
 
 
 def _sync_schema(app_obj: Any, *, confirm: bool) -> None:
-    plan = _plan_schema(app_obj)
-    destructive = any(
-        item.get("destructive")
-        for item in (*plan["added"], *plan["removed"], *plan["changed"])
-    )
-    if not plan["added"] and not plan["removed"] and not plan["changed"]:
-        return
-    if destructive and not confirm:
-        changed = plan["changed"][0] if plan["changed"] else plan["removed"][0]
-        raise DestructiveChangeError(
-            f"Destructive change on {changed.get('collection')}.{changed.get('field')}; "
-            "run `snackapp migrate --confirm`"
-        )
-    # Application of the plan is performed by the SnackBase generate endpoint
-    # once a superadmin token is available; non-destructive field adds go
-    # through collection update on first authenticated boot.
+    import asyncio
+
+    from snackapp.schema_sync import apply_schema
+
+    asyncio.run(apply_schema(app_obj, confirm=confirm))

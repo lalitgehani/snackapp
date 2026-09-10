@@ -30,6 +30,8 @@ def test_ci_installs_from_testpypi_on_os_matrix():
     assert "windows-latest" in text
     assert '"3.12"' in text
     assert '"3.13"' in text
+    assert "ref: pypi-oidc" in text
+    assert "snackbase-0.12.1-py3-none-any.whl" in text
 
 
 def test_readme_and_deploy_document_testpypi_install():

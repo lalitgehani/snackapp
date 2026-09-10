@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: lalitgehani/SnackBase
+          ref: pypi-oidc
           path: SnackBase
       - uses: astral-sh/setup-uv@v4
         with:
@@ -42,7 +43,9 @@ jobs:
           else
             PY=.ci-venv/Scripts/python
           fi
-          "$PY" -m pip install ../SnackBase/dist/snackbase-*.whl dist/snackapp-*.whl
+          "$PY" -m pip install \
+            ../SnackBase/dist/snackbase-0.12.1-py3-none-any.whl \
+            dist/snackapp-0.1.1-py3-none-any.whl
           "$PY" -m snackapp --help
           "$PY" -m snackapp --version
 

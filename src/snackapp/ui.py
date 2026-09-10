@@ -259,10 +259,10 @@ def list_view(rows: list[dict], title_field: str, subtitle_field: str | None = N
     return _node("list", rows=rows, title_field=title_field, subtitle_field=subtitle_field)
 
 
-def calendar(rows: list[dict], date_field: str):
+def calendar(rows: list[dict], date_field: str, card_link: str | None = None):
     if not date_field:
         raise ValueError("calendar view requires a date field")
-    return _node("calendar", rows=rows, date_field=date_field)
+    return _node("calendar", rows=rows, date_field=date_field, card_link=card_link)
 
 
 def view_bar(views: list[dict], current: str | None = None):

@@ -34,28 +34,37 @@ function LoginForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <form data-kind="login" onSubmit={submit} style={{ maxWidth: 360 }}>
-      <h1>Log in</h1>
-      <label>
-        Email
-        <input name="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-      <label>
-        Password
-        <input
-          name="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </label>
-      <label>
-        Account
-        <input name="account" value={account} onChange={(e) => setAccount(e.target.value)} />
-      </label>
-      {error ? <p className="muted">{error}</p> : null}
-      <button type="submit">Sign in</button>
-    </form>
+    <div className="login-screen">
+      <form data-kind="login" className="login-card" onSubmit={submit}>
+        <div className="login-kicker">SnackApp</div>
+        <h1>Open the ledger.</h1>
+        <p className="muted">Sign in with the credentials printed on first boot.</p>
+        <label>
+          Email
+          <input name="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+        <label>
+          Account
+          <input
+            name="account"
+            placeholder="AA0001"
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
+          />
+        </label>
+        {error ? <p className="muted">{error}</p> : null}
+        <button type="submit">Enter</button>
+      </form>
+    </div>
   );
 }
 
@@ -69,7 +78,6 @@ export function App() {
   const [theme, setTheme] = useState<"light" | "dark">(
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
-
   const [toast, setToast] = useState("");
 
   const filteredNav = useMemo(
@@ -81,6 +89,31 @@ export function App() {
     history.pushState({}, "", base + next);
     setPath(next);
   }, []);
+
+  function loadMeta() {
+    fetch(`${base}/_sa/meta`, { credentials: "include" })
+      .then((r) => r.json())
+      .then(setMeta)
+      .catch(() => setMeta({ title: "SnackApp", nav: [], user: null }));
+  }
+
+  function loadView(next = path) {
+    const qs = window.location.search;
+    fetch(`${base}/_sa/view?path=${encodeURIComponent(next)}${qs ? "&" + qs.slice(1) : ""}`, {
+      credentials: "include",
+    })
+      .then(async (r) => {
+        if (r.status === 401) {
+          setAuth("login");
+          setTree(null);
+          return;
+        }
+        const data = await r.json();
+        setAuth("ok");
+        setTree(data.tree);
+      })
+      .catch(() => setTree({ kind: "page", children: [{ kind: "text", value: "offline" }] }));
+  }
 
   const runAction = useCallback(
     async (name: string, params: Record<string, unknown> = {}): Promise<ActionResult> => {
@@ -108,31 +141,6 @@ export function App() {
     [go, path],
   );
 
-  function loadMeta() {
-    fetch(`${base}/_sa/meta`, { credentials: "include" })
-      .then((r) => r.json())
-      .then(setMeta)
-      .catch(() => setMeta({ title: "SnackApp", nav: [], user: null }));
-  }
-
-  function loadView(next = path) {
-    const qs = window.location.search;
-    fetch(`${base}/_sa/view?path=${encodeURIComponent(next)}${qs ? "&" + qs.slice(1) : ""}`, {
-      credentials: "include",
-    })
-      .then(async (r) => {
-        if (r.status === 401) {
-          setAuth("login");
-          setTree(null);
-          return;
-        }
-        const data = await r.json();
-        setAuth("ok");
-        setTree(data.tree);
-      })
-      .catch(() => setTree({ kind: "page", children: [{ kind: "text", value: "offline" }] }));
-  }
-
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -144,6 +152,12 @@ export function App() {
   useEffect(() => {
     loadView(path);
   }, [path]);
+
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname.replace(base, "") || "/");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -159,75 +173,94 @@ export function App() {
 
   const actionApi = useMemo(() => ({ run: runAction, go }), [runAction, go]);
 
+  if (auth === "login") {
+    return (
+      <LoginForm
+        onDone={() => {
+          loadMeta();
+          loadView(path);
+        }}
+      />
+    );
+  }
+
   return (
     <ActionContext.Provider value={actionApi}>
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <aside style={{ width: 220, borderRight: "1px solid var(--line)", padding: 16 }}>
-        <strong>{meta?.title ?? "SnackApp"}</strong>
-        <nav>
-          {(meta?.nav || []).map((item) => (
-            <a
-              key={item.path}
-              href={base + item.path}
-              onClick={(e) => {
-                e.preventDefault();
-                history.pushState({}, "", base + item.path);
-                setPath(item.path);
-              }}
-              style={{ display: "block", marginTop: 8 }}
-            >
-              {item.title}
-            </a>
-          ))}
-        </nav>
-        <button type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          Theme
-        </button>
-      </aside>
-      <main style={{ flex: 1, padding: 24 }}>
-        {toast ? <div className="toast" role="status">{toast}</div> : null}
-        {auth === "login" ? (
-          <LoginForm
-            onDone={() => {
-              loadMeta();
-              loadView(path);
-            }}
-          />
-        ) : tree ? (
-          renderNode(tree)
-        ) : (
-          <p>Loading…</p>
-        )}
-      </main>
-      {command ? (
-        <div data-kind="command" role="dialog" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)" }}>
-          <div style={{ margin: "12vh auto", width: 420, background: "var(--panel)", padding: 16 }}>
-            <input
-              autoFocus
-              placeholder="Jump to…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <ul>
-              {filteredNav.map((item) => (
-                <li key={item.path}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      history.pushState({}, "", base + item.path);
-                      setPath(item.path);
-                      setCommand(false);
-                    }}
-                  >
-                    {item.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
+      <div className="shell">
+        <aside className="rail">
+          <div className="brand">
+            <span className="mark" aria-hidden="true" />
+            <span className="wordmark">{meta?.title ?? "SnackApp"}</span>
           </div>
-        </div>
-      ) : null}
-    </div>
+          <nav>
+            {(meta?.nav || []).map((item) => (
+              <a
+                key={item.path}
+                href={base + item.path}
+                className={path === item.path ? "active" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  go(item.path);
+                }}
+              >
+                {item.title}
+              </a>
+            ))}
+          </nav>
+          <div className="rail-foot">
+            <span>{meta?.user?.email}</span>
+            <button type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? "Day paper" : "Night ink"}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await fetch(`${base}/_sa/logout`, { method: "POST", credentials: "include" });
+                setAuth("login");
+                setTree(null);
+              }}
+            >
+              Sign out
+            </button>
+            <span className="muted">⌘K to jump</span>
+          </div>
+        </aside>
+        <main className="stage">
+          {toast ? (
+            <div className="toast" role="status">
+              {toast}
+            </div>
+          ) : null}
+          {tree ? renderNode(tree) : <p className="muted">Setting the desk…</p>}
+        </main>
+        {command ? (
+          <div className="command" data-kind="command" role="dialog">
+            <div className="command-panel">
+              <input
+                autoFocus
+                placeholder="Jump to a page…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <ul>
+                {filteredNav.map((item) => (
+                  <li key={item.path}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        go(item.path);
+                        setCommand(false);
+                      }}
+                    >
+                      {item.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </ActionContext.Provider>
   );
 }

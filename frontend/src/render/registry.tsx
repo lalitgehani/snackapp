@@ -11,7 +11,11 @@ export type Node = {
 export type Renderers = Record<string, (node: Node, render: (n: Node) => ReactNode) => ReactNode>;
 
 function kids(node: Node, render: (n: Node) => ReactNode): ReactNode {
-  return (node.children || []).map((child, i) => <span key={i}>{render(child)}</span>);
+  return (node.children || []).map((child, i) => (
+    <div key={i} className="sa-slot">
+      {render(child)}
+    </div>
+  ));
 }
 
 function chip(value: unknown): ReactNode {
@@ -34,10 +38,14 @@ export const registry: Renderers = {
       {n.subtitle ? <p>{String(n.subtitle)}</p> : null}
     </header>
   ),
-  row: (n, r) => <div style={{ display: "flex", gap: 12 }}>{kids(n, r)}</div>,
-  column: (n, r) => <div style={{ flex: 1 }}>{kids(n, r)}</div>,
+  row: (n, r) => (
+    <div data-kind="row">{kids(n, r)}</div>
+  ),
+  column: (n, r) => (
+    <div data-kind="column">{kids(n, r)}</div>
+  ),
   card: (n, r) => (
-    <section style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, padding: 16 }}>
+    <section data-kind="card">
       {n.title ? <h3>{String(n.title)}</h3> : null}
       {kids(n, r)}
     </section>
@@ -88,7 +96,7 @@ export const registry: Renderers = {
       ))}
     </ul>
   ),
-  calendar: (n) => <div data-kind="calendar" data-field={String(n.date_field)} />,
+  calendar: (n) => <Calendar node={n} />,
   view_bar: (n) => (
     <div data-kind="view-bar">
       {((n.views as { name: string }[]) || []).map((v) => (
@@ -129,7 +137,7 @@ function DataTable({ node }: { node: Node }) {
             style={link ? { cursor: "pointer" } : undefined}
           >
             {columns.map((c) => (
-              <td key={c.field}>{cell(row[c.field])}</td>
+              <td key={c.field}>{cell(row[c.field], c.field)}</td>
             ))}
             {actions.length ? (
               <td onClick={(event) => event.stopPropagation()}>
@@ -242,9 +250,14 @@ function ActionButton({ node }: { node: Node }) {
   );
 }
 
-function cell(value: unknown): ReactNode {
+function cell(value: unknown, field?: string): ReactNode {
   if (value && typeof value === "object") return chip(value);
-  return String(value ?? "");
+  const text = String(value ?? "");
+  if (field === "status" && ["todo", "doing", "done"].includes(text)) {
+    return <span className={`badge status-pill status-${text}`}>{text}</span>;
+  }
+  if (!text) return <span className="muted">—</span>;
+  return text;
 }
 
 function FieldGrid({ node }: { node: Node }) {
@@ -263,24 +276,87 @@ function FieldGrid({ node }: { node: Node }) {
 }
 
 function Kanban({ node }: { node: Node }) {
+  const { go } = useContext(ActionContext);
   const groups = (node.groups as string[]) || [];
   const rows = (node.rows as Record<string, unknown>[]) || [];
   const groupBy = String(node.group_by || "stage");
   const titleField = String(node.title_field || "name");
+  const subtitleField = node.subtitle_field ? String(node.subtitle_field) : "";
+  const link = node.card_link ? String(node.card_link) : "";
   return (
-    <div data-kind="kanban" style={{ display: "flex", gap: 12 }}>
-      {groups.map((g) => (
-        <div key={g} data-group={g} style={{ flex: 1 }}>
-          <h4>{g}</h4>
-          {rows
-            .filter((row) => String(row[groupBy] ?? "") === g)
-            .map((row, i) => (
-              <article key={String(row.id ?? i)} draggable>
-                {String(row[titleField] ?? "")}
+    <div data-kind="kanban">
+      {groups.map((g) => {
+        const cards = rows.filter((row) => String(row[groupBy] ?? "") === g);
+        return (
+          <div key={g} data-group={g}>
+            <h4>
+              {g} · {cards.length}
+            </h4>
+            {cards.map((row, i) => (
+              <article
+                key={String(row.id ?? i)}
+                draggable
+                onClick={link ? () => go(link.replace("{id}", String(row.id ?? ""))) : undefined}
+              >
+                <strong>{String(row[titleField] ?? "")}</strong>
+                {subtitleField ? <small>{String(row[subtitleField] ?? "no date")}</small> : null}
               </article>
             ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Calendar({ node }: { node: Node }) {
+  const { go } = useContext(ActionContext);
+  const rows = (node.rows as Record<string, unknown>[]) || [];
+  const field = String(node.date_field || "due");
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const pad = new Date(year, month, 1).getDay();
+  const byDay = new Map<number, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const raw = String(row[field] ?? "");
+    const day = Number(raw.slice(8, 10));
+    if (!day || raw.slice(0, 7) !== `${year}-${String(month + 1).padStart(2, "0")}`) continue;
+    byDay.set(day, [...(byDay.get(day) || []), row]);
+  }
+  const heads = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const cells: ReactNode[] = [];
+  for (let i = 0; i < pad; i++) cells.push(<div key={`p${i}`} className="cal-cell" />);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const items = byDay.get(d) || [];
+    cells.push(
+      <div key={d} className="cal-cell">
+        <div className="cal-day">{d}</div>
+        {items.map((row) => (
+          <span
+            key={String(row.id)}
+            className="cal-item"
+            onClick={
+              node.card_link
+                ? () => go(String(node.card_link).replace("{id}", String(row.id ?? "")))
+                : undefined
+            }
+          >
+            {String(row.title || row.name || "")}
+          </span>
+        ))}
+      </div>,
+    );
+  }
+  return (
+    <div data-kind="calendar" data-field={field}>
+      {heads.map((h) => (
+        <div key={h} className="cal-head">
+          {h}
         </div>
       ))}
+      {cells}
     </div>
   );
 }

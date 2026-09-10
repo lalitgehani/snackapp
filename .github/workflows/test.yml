@@ -23,6 +23,11 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: snackapp/frontend/package-lock.json
       - name: Test
         working-directory: snackapp
         run: |
@@ -30,6 +35,11 @@ jobs:
           uv run ruff check .
           uv run pytest --cov --cov-fail-under=80
           uv build
+      - name: Frontend tests
+        working-directory: snackapp/frontend
+        run: |
+          npm ci
+          npm test
       - name: Build snackbase wheel
         working-directory: SnackBase
         run: uv build

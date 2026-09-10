@@ -1,3 +1,5 @@
+import { createElement, type ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { registry } from "./registry";
 
@@ -15,13 +17,23 @@ describe("node registry", () => {
     }
   });
 
-  it("bounds table rows", () => {
+  it("keeps a 10000-row table to a bounded tbody", () => {
     const node = {
       kind: "table",
-      rows: Array.from({ length: 80 }, (_, i) => ({ id: String(i), name: "n" })),
+      rows: Array.from({ length: 10_000 }, (_, i) => ({ id: String(i), name: `n${i}` })),
       columns: [{ field: "name", label: "Name" }],
     };
-    const el = registry.table(node, () => null) as { props: { node: typeof node } };
-    expect(el).toBeTruthy();
+    const el = registry.table(node, () => null) as ReactElement;
+    const html = renderToStaticMarkup(createElement("div", null, el));
+    expect(html).toContain('data-kind="table"');
+    expect(html).toContain('data-row-count="10000"');
+    expect(html).toContain('data-virtual-bound="60"');
+    const body = html.match(/<tbody>([\s\S]*)<\/tbody>/)?.[1] ?? "";
+    const rowCount = (body.match(/<tr\b/g) ?? []).length;
+    expect(rowCount).toBe(60);
+    expect(body).toContain(">n0<");
+    expect(body).toContain(">n59<");
+    expect(body).not.toContain(">n60<");
+    expect(body).not.toContain(">n9999<");
   });
 });
